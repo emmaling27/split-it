@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -191,5 +191,23 @@ export const get = query({
         role: m.role,
       })),
     };
+  },
+});
+
+/**
+ * Get a user's membership in a group
+ */
+export const getMembership = internalQuery({
+  args: {
+    groupId: v.id("groups"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group_and_user", (q) =>
+        q.eq("groupId", args.groupId).eq("userId", args.userId),
+      )
+      .unique();
   },
 });

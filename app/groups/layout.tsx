@@ -6,4 +6,4 @@ export default function GroupsLayout({
   children: React.ReactNode;
 }) {
   return <ConvexClientProvider>{children}</ConvexClientProvider>;
-} 
+}
