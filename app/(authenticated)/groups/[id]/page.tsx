@@ -1,9 +1,9 @@
 import { Suspense } from "react";
-import { Id } from "../../../convex/_generated/dataModel";
-import GroupHeader from "../../../components/GroupHeader";
-import ExpenseList from "../../../components/ExpenseList";
-import CreateExpenseButton from "../../../components/CreateExpenseButton";
-import InviteButton from "../../../components/InviteButton";
+import { Id } from "@/convex/_generated/dataModel";
+import GroupHeader from "@/components/GroupHeader";
+import ExpenseList from "@/components/ExpenseList";
+import CreateExpenseButton from "@/components/CreateExpenseButton";
+import InviteButton from "@/components/InviteButton";
 
 export default function GroupPage({
   params,

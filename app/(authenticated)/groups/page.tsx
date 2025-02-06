@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import GroupList from "../../components/GroupList";
-import CreateGroupButton from "../../components/CreateGroupButton";
+import GroupList from "@/components/GroupList";
+import CreateGroupButton from "@/components/CreateGroupButton";
 
 export default function GroupsPage() {
   return (
