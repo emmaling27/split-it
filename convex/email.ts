@@ -11,7 +11,7 @@ export async function sendResend(
   ctx: ActionCtx,
   { to, subject, html }: EmailArgs,
 ) {
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const resend = new Resend(process.env.AUTH_RESEND_KEY);
 
   try {
     const data = await resend.emails.send({
