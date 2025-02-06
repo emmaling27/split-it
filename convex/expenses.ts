@@ -148,6 +148,8 @@ export const listByGroup = query({
   returns: v.array(
     v.object({
       _id: v.id("expenses"),
+      _creationTime: v.number(),
+      groupId: v.id("groups"),
       description: v.string(),
       amount: v.number(),
       date: v.number(),
