@@ -6,4 +6,4 @@ export default function AuthenticatedLayout({
   children: React.ReactNode;
 }) {
   return <ConvexClientProvider>{children}</ConvexClientProvider>;
-} 
+}
