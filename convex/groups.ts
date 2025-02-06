@@ -211,3 +211,69 @@ export const getMembership = internalQuery({
       .unique();
   },
 });
+
+/**
+ * Join a group using an invitation
+ */
+export const joinGroup = mutation({
+  args: {
+    inviteId: v.id("invitations"),
+  },
+  handler: async (ctx, { inviteId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Get user's email from auth
+    const user = await ctx.db.get(userId);
+    if (!user?.email) throw new Error("User email not found");
+    const email = user.email as string;
+
+    // Validate the invite
+    const validation = await ctx.db
+      .query("invitations")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("status"), "pending"),
+          q.gt(q.field("expiresAt"), Date.now()),
+        ),
+      )
+      .first();
+
+    if (!validation) {
+      throw new Error("No valid invitation found for your email");
+    }
+    if (validation._id !== inviteId) {
+      throw new Error("Invalid invitation");
+    }
+
+    const groupId = validation.groupId;
+
+    // Check if user is already a member
+    const existingMembership = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group_and_user", (q) =>
+        q.eq("groupId", groupId).eq("userId", userId),
+      )
+      .unique();
+
+    if (existingMembership) {
+      throw new Error("You are already a member of this group");
+    }
+
+    // Add user as a regular member
+    await ctx.db.insert("groupMembers", {
+      groupId,
+      userId,
+      balance: 0,
+      role: "member",
+    });
+
+    // Mark the invitation as accepted
+    await ctx.db.patch(validation._id, {
+      status: "accepted",
+    });
+
+    return groupId;
+  },
+});

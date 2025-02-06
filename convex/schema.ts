@@ -30,6 +30,22 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_group_and_user", ["groupId", "userId"]),
 
+  // Invitations table to track group invites
+  invitations: defineTable({
+    groupId: v.id("groups"),
+    email: v.string(),
+    invitedBy: v.id("users"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("expired"),
+    ),
+    expiresAt: v.number(), // Unix timestamp
+  })
+    .index("by_email", ["email"])
+    .index("by_group", ["groupId"])
+    .index("by_group_and_email", ["groupId", "email"]),
+
   // Expenses table to store all expenses
   expenses: defineTable({
     // Basic expense info
