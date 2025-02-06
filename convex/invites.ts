@@ -29,6 +29,10 @@ export const sendInvite = action({
     });
     if (!membership) throw new Error("Not a member of this group");
 
+    // Get inviter's email
+    const inviter = await ctx.runQuery(api.users.get, { userId });
+    if (!inviter) throw new Error("Inviter not found");
+
     // Check if there's already a pending invite
     const existingInvite = await ctx.runMutation(
       internal.invites.getOrCreateInvite,
@@ -46,7 +50,7 @@ export const sendInvite = action({
       html: `
         <div>
           <h1>You've been invited to join ${group.name} on Split-it!</h1>
-          <p>${membership.role === "admin" ? "Admin" : "Member"} ${userId} has invited you to join their expense-sharing group.</p>
+          <p>${membership.role === "admin" ? "Admin" : "Member"} ${inviter.email} has invited you to join their expense-sharing group.</p>
           <p>Click the link below to join:</p>
           <a href="${process.env.SITE_URL}/join-group/${existingInvite}">Join Group</a>
           <p>This invite link will expire in ${INVITE_EXPIRY_DAYS} days.</p>

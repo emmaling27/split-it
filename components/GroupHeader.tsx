@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import UserDisplay from "./UserDisplay";
 
 export default function GroupHeader({ groupId }: { groupId: Id<"groups"> }) {
   const group = useQuery(api.groups.get, { groupId });
@@ -42,7 +43,7 @@ export default function GroupHeader({ groupId }: { groupId: Id<"groups"> }) {
                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                   {member.role === "admin" ? "A" : "M"}
                 </div>
-                <span className="font-medium">User {member.userId}</span>
+                <UserDisplay userId={member.userId} />
               </div>
               <span
                 className={`font-medium ${

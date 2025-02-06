@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import UserDisplay from "./UserDisplay";
 
 export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
   const expenses = useQuery(api.expenses.listByGroup, { groupId });
@@ -32,6 +33,9 @@ export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
               {expense.note && (
                 <p className="text-gray-600 text-sm">{expense.note}</p>
               )}
+              <p className="text-sm text-gray-500">
+                Paid by <UserDisplay userId={expense.paidBy} />
+              </p>
             </div>
             <div className="text-right">
               <div className="text-lg font-semibold text-green-600">
@@ -53,7 +57,7 @@ export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
                   key={split.userId}
                   className="flex justify-between items-center"
                 >
-                  <span className="text-sm">User {split.userId}</span>
+                  <UserDisplay userId={split.userId} />
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium">
                       ${split.amount.toFixed(2)}
