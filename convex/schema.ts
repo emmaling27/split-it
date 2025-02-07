@@ -15,6 +15,7 @@ export default defineSchema({
     createdBy: v.id("users"),
     // Total balance of the group
     totalBalance: v.number(),
+    customSplitRatio: v.optional(v.boolean()),
   }),
 
   // GroupMembers table to track members in each group

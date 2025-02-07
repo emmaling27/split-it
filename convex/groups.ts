@@ -20,6 +20,7 @@ export const create = mutation({
       description: args.description,
       createdBy: userId,
       totalBalance: 0,
+      customSplitRatio: false,
     });
 
     // Add creator as an admin member
@@ -317,6 +318,11 @@ export const updateSplitPercents = mutation({
     if (Math.abs(total - 100) > 0.01) {
       throw new Error("Split percentages must sum to 100%");
     }
+
+    // Mark the group as having custom split ratios
+    await ctx.db.patch(groupId, {
+      customSplitRatio: true,
+    });
 
     // Update each member's split percentage
     for (const split of splits) {
