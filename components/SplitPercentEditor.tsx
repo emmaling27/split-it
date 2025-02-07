@@ -19,12 +19,17 @@ export default function SplitPercentEditor({
   members: Member[];
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [splits, setSplits] = useState<Record<string, number>>(
-    Object.fromEntries(members.map((m) => [m.userId, m.splitPercent ?? 0])),
-  );
   const [error, setError] = useState<string | null>(null);
+  const [editedSplits, setEditedSplits] = useState<Record<
+    string,
+    number
+  > | null>(null);
 
   const updateSplits = useMutation(api.groups.updateSplitPercents);
+
+  const splits =
+    editedSplits ??
+    Object.fromEntries(members.map((m) => [m.userId, m.splitPercent ?? 0]));
 
   const totalPercent = Object.values(splits).reduce((sum, v) => sum + v, 0);
 
@@ -43,6 +48,7 @@ export default function SplitPercentEditor({
         })),
       });
       setIsEditing(false);
+      setEditedSplits(null);
       setError(null);
     } catch (error) {
       setError(
@@ -96,7 +102,7 @@ export default function SplitPercentEditor({
               step="0.1"
               value={splits[member.userId]}
               onChange={(e) =>
-                setSplits({
+                setEditedSplits({
                   ...splits,
                   [member.userId]: parseFloat(e.target.value) || 0,
                 })
@@ -115,7 +121,10 @@ export default function SplitPercentEditor({
         </div>
         <div className="space-x-2">
           <button
-            onClick={() => setIsEditing(false)}
+            onClick={() => {
+              setIsEditing(false);
+              setEditedSplits(null);
+            }}
             className="px-3 py-1 text-gray-600 hover:text-gray-800"
           >
             Cancel
