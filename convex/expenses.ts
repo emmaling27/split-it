@@ -157,6 +157,7 @@ export const listByGroup = query({
     const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_group_and_status", (q) => q.eq("groupId", args.groupId))
+      .order("desc")
       .collect();
 
     const expensesWithSplits = await Promise.all(
