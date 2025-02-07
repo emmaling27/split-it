@@ -323,5 +323,69 @@ export const updateSplitPercents = mutation({
         });
       }
     }
+
+    // Get all active expenses for this group
+    const activeExpenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_group_and_status", (q) =>
+        q.eq("groupId", groupId).eq("status", "active"),
+      )
+      .collect();
+
+    // Update splits for each active expense
+    for (const expense of activeExpenses) {
+      // Skip expenses that don't use default split
+      if (expense.splitType !== "default") continue;
+
+      // Get current splits for this expense
+      const currentSplits = await ctx.db
+        .query("expenseSplits")
+        .withIndex("by_expense", (q) => q.eq("expenseId", expense._id))
+        .collect();
+
+      // Calculate new split amounts based on new percentages
+      for (const split of currentSplits) {
+        const newSplitPercent = splits.find(
+          (s) => s.userId === split.userId,
+        )?.splitPercent;
+        if (newSplitPercent !== undefined) {
+          const newAmount = (expense.amount * newSplitPercent) / 100;
+          await ctx.db.patch(split._id, {
+            amount: newAmount,
+          });
+        }
+      }
+
+      // Update member balances
+      for (const member of splits) {
+        const memberDoc = await ctx.db
+          .query("groupMembers")
+          .withIndex("by_group_and_user", (q) =>
+            q.eq("groupId", groupId).eq("userId", member.userId),
+          )
+          .unique();
+
+        if (memberDoc) {
+          const oldSplit = currentSplits.find(
+            (s) => s.userId === member.userId,
+          );
+          const newAmount = (expense.amount * member.splitPercent) / 100;
+          const balanceChange = oldSplit
+            ? oldSplit.amount - newAmount
+            : -newAmount;
+
+          // If this is the payer, handle differently
+          if (member.userId === expense.paidBy) {
+            await ctx.db.patch(memberDoc._id, {
+              balance: memberDoc.balance + balanceChange,
+            });
+          } else {
+            await ctx.db.patch(memberDoc._id, {
+              balance: memberDoc.balance + balanceChange,
+            });
+          }
+        }
+      }
+    }
   },
 });
