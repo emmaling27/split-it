@@ -58,7 +58,7 @@ export default defineSchema({
     groupId: v.id("groups"),
     // Who paid for the expense
     paidBy: v.id("users"),
-    // Type of split: "default" or "custom"
+    // Type of split: "equal" or "custom"
     splitType: v.union(v.literal("default"), v.literal("custom")),
     // Optional note
     note: v.optional(v.string()),
