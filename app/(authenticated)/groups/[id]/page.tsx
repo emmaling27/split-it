@@ -4,6 +4,7 @@ import GroupHeader from "@/components/GroupHeader";
 import ExpenseList from "@/components/ExpenseList";
 import CreateExpenseButton from "@/components/CreateExpenseButton";
 import InviteButton from "@/components/InviteButton";
+import SettleGroupButton from "@/components/SettleGroupButton";
 
 export default function GroupPage({
   params,
@@ -19,6 +20,7 @@ export default function GroupPage({
       <div className="flex justify-between items-center my-8">
         <h2 className="text-2xl font-semibold">Expenses</h2>
         <div className="flex gap-4">
+          <SettleGroupButton groupId={params.id} />
           <InviteButton groupId={params.id} />
           <CreateExpenseButton groupId={params.id} />
         </div>

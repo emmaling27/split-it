@@ -239,3 +239,74 @@ export const settleExpense = mutation({
     return null;
   },
 });
+
+/**
+ * Settle up all expenses in a group and reset balances
+ */
+export const settleGroup = mutation({
+  args: {
+    groupId: v.id("groups"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if user is a member of the group
+    const membership = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group_and_user", (q) =>
+        q.eq("groupId", args.groupId).eq("userId", userId),
+      )
+      .unique();
+
+    if (!membership) {
+      throw new Error("Not a member of this group");
+    }
+
+    // Get all active expenses in the group
+    const expenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    // For each expense, mark all splits as settled
+    for (const expense of expenses) {
+      const splits = await ctx.db
+        .query("expenseSplits")
+        .withIndex("by_expense", (q) => q.eq("expenseId", expense._id))
+        .collect();
+
+      for (const split of splits) {
+        await ctx.db.patch(split._id, {
+          settled: true,
+        });
+      }
+
+      // Mark the expense as settled
+      await ctx.db.patch(expense._id, {
+        status: "settled",
+      });
+    }
+
+    // Reset all member balances to zero
+    const members = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .collect();
+
+    for (const member of members) {
+      await ctx.db.patch(member._id, {
+        balance: 0,
+      });
+    }
+
+    // Reset group total balance
+    await ctx.db.patch(args.groupId, {
+      totalBalance: 0,
+    });
+
+    return null;
+  },
+});
