@@ -9,11 +9,14 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 
-export default function GroupPage({
-  params,
-}: {
-  params: { id: Id<"groups"> };
-}) {
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function GroupPage({ params }: PageProps) {
+  const { id } = await params;
+  const groupId = id as Id<"groups">;
+
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -26,20 +29,20 @@ export default function GroupPage({
       </div>
 
       <Suspense fallback={<div>Loading group details...</div>}>
-        <GroupHeader groupId={params.id} />
+        <GroupHeader groupId={groupId} />
       </Suspense>
 
       <div className="flex justify-between items-center my-8">
         <h2 className="text-2xl font-semibold">Expenses</h2>
         <div className="flex gap-4">
-          <SettleGroupButton groupId={params.id} />
-          <InviteButton groupId={params.id} />
-          <CreateExpenseButton groupId={params.id} />
+          <SettleGroupButton groupId={groupId} />
+          <InviteButton groupId={groupId} />
+          <CreateExpenseButton groupId={groupId} />
         </div>
       </div>
 
       <Suspense fallback={<div>Loading expenses...</div>}>
-        <ExpenseList groupId={params.id} />
+        <ExpenseList groupId={groupId} />
       </Suspense>
     </main>
   );
