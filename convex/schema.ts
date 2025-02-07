@@ -65,8 +65,8 @@ export default defineSchema({
     // Status of the expense: "active" or "settled"
     status: v.union(v.literal("active"), v.literal("settled")),
   })
-    .index("by_group", ["groupId"])
-    .index("by_paid_by", ["paidBy"]),
+    .index("by_paid_by", ["paidBy"])
+    .index("by_group_and_status", ["groupId", "status"]),
 
   // ExpenseSplits table to store how each expense is split
   expenseSplits: defineTable({

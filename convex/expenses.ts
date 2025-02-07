@@ -156,7 +156,7 @@ export const listByGroup = query({
 
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .withIndex("by_group_and_status", (q) => q.eq("groupId", args.groupId))
       .collect();
 
     const expensesWithSplits = await Promise.all(
@@ -267,8 +267,9 @@ export const settleGroup = mutation({
     // Get all active expenses in the group
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
-      .filter((q) => q.eq(q.field("status"), "active"))
+      .withIndex("by_group_and_status", (q) =>
+        q.eq("groupId", args.groupId).eq("status", "active"),
+      )
       .collect();
 
     // For each expense, mark all splits as settled
