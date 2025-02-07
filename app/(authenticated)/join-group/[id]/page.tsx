@@ -34,10 +34,18 @@ export default function JoinGroupPage() {
       <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold mb-4">Join Group</h1>
 
-        <p className="mb-6 text-gray-600">
-          "Click the button below to join the group. You'll need to sign in
-          first if you haven't already."
-        </p>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">
+            Invalid or Expired Invitation
+          </h1>
+          <p className="text-gray-600 mb-4">
+            We could not find a valid invitation for your email. The invitation
+            might have expired or does not match your account email address.
+          </p>
+          <p className="text-gray-600">
+            Please ask for a new invitation from the group admin.
+          </p>
+        </div>
 
         {error && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
