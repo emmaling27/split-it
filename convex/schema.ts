@@ -25,6 +25,8 @@ export default defineSchema({
     balance: v.number(),
     // Role can be "admin" or "member"
     role: v.union(v.literal("admin"), v.literal("member")),
+    // Default split percentage for this member (0-100)
+    splitPercent: v.optional(v.number()),
   })
     .index("by_group", ["groupId"])
     .index("by_user", ["userId"])

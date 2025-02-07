@@ -28,6 +28,7 @@ export const create = mutation({
       userId,
       balance: 0,
       role: "admin",
+      splitPercent: 100,
     });
 
     return groupId;
@@ -151,6 +152,7 @@ export const get = query({
         userId: v.id("users"),
         balance: v.number(),
         role: v.union(v.literal("admin"), v.literal("member")),
+        splitPercent: v.optional(v.number()),
       }),
     ),
   }),
@@ -189,6 +191,7 @@ export const get = query({
         userId: m.userId,
         balance: m.balance,
         role: m.role,
+        splitPercent: m.splitPercent,
       })),
     };
   },
@@ -275,5 +278,60 @@ export const joinGroup = mutation({
     });
 
     return groupId;
+  },
+});
+
+/**
+ * Update default split percentages for group members
+ */
+export const updateSplitPercents = mutation({
+  args: {
+    groupId: v.id("groups"),
+    splits: v.array(
+      v.object({
+        userId: v.id("users"),
+        splitPercent: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, { groupId, splits }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if user is an admin of the group
+    const membership = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group_and_user", (q) =>
+        q.eq("groupId", groupId).eq("userId", userId),
+      )
+      .unique();
+
+    if (!membership) {
+      throw new Error(
+        "Must be a member of the group to update split percentages",
+      );
+    }
+
+    // Validate total is 100%
+    const total = splits.reduce((sum, split) => sum + split.splitPercent, 0);
+    if (Math.abs(total - 100) > 0.01) {
+      throw new Error("Split percentages must sum to 100%");
+    }
+
+    // Update each member's split percentage
+    for (const split of splits) {
+      const member = await ctx.db
+        .query("groupMembers")
+        .withIndex("by_group_and_user", (q) =>
+          q.eq("groupId", groupId).eq("userId", split.userId),
+        )
+        .unique();
+
+      if (member) {
+        await ctx.db.patch(member._id, {
+          splitPercent: split.splitPercent,
+        });
+      }
+    }
   },
 });

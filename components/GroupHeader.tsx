@@ -6,6 +6,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import UserDisplay from "./UserDisplay";
 import { StarIcon, PersonIcon } from "@radix-ui/react-icons";
 import * as Tooltip from "@radix-ui/react-tooltip";
+import SplitPercentEditor from "./SplitPercentEditor";
 
 export default function GroupHeader({ groupId }: { groupId: Id<"groups"> }) {
   const group = useQuery(api.groups.get, { groupId });
@@ -75,6 +76,8 @@ export default function GroupHeader({ groupId }: { groupId: Id<"groups"> }) {
               </div>
             ))}
           </div>
+
+          <SplitPercentEditor groupId={groupId} members={group.members} />
         </div>
       </div>
     </Tooltip.Provider>
