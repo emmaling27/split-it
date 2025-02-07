@@ -19,7 +19,7 @@ export default function CreateExpenseButton({
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [splitType, setSplitType] = useState<"equal" | "custom">("equal");
+  const [splitType, setSplitType] = useState<"default" | "custom">("default");
   const [customSplits, setCustomSplits] = useState<
     { userId: Id<"users">; amount: string }[]
   >([]);
@@ -39,7 +39,7 @@ export default function CreateExpenseButton({
       if (isNaN(numericAmount)) throw new Error("Invalid amount");
 
       let splits: Split[] = [];
-      if (splitType === "equal") {
+      if (splitType === "default") {
         // The backend will handle equal splits
         splits = [];
       } else {
@@ -68,7 +68,7 @@ export default function CreateExpenseButton({
       setDescription("");
       setAmount("");
       setNote("");
-      setSplitType("equal");
+      setSplitType("default");
       setCustomSplits([]);
     } catch (error) {
       console.error("Failed to create expense:", error);
@@ -154,11 +154,11 @@ export default function CreateExpenseButton({
                   id="splitType"
                   value={splitType}
                   onChange={(e) =>
-                    setSplitType(e.target.value as "equal" | "custom")
+                    setSplitType(e.target.value as "default" | "custom")
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="equal">Equal Split</option>
+                  <option value="equal">Default Split</option>
                   <option value="custom">Custom Split</option>
                 </select>
               </div>

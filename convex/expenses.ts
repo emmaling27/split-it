@@ -10,7 +10,7 @@ export const create = mutation({
     groupId: v.id("groups"),
     description: v.string(),
     amount: v.number(),
-    splitType: v.union(v.literal("equal"), v.literal("custom")),
+    splitType: v.union(v.literal("default"), v.literal("custom")),
     splits: v.array(
       v.object({
         userId: v.id("users"),
@@ -36,28 +36,31 @@ export const create = mutation({
       throw new Error("Not a member of this group");
     }
 
-    // Validate splits
-    if (args.splitType === "equal") {
-      // For equal splits, we'll calculate the amounts automatically
-      const members = await ctx.db
-        .query("groupMembers")
-        .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
-        .collect();
+    // Get the group to check split configuration
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("Group not found");
 
-      const splitAmount = args.amount / members.length;
-      args.splits = members.map((member) => ({
+    // Get all group members
+    const members = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .collect();
+
+    // Calculate splits based on given configuration
+    let splits = args.splits;
+    if (args.splitType === "default") {
+      // Use each member's splitPercent for default splits
+      splits = members.map((member) => ({
         userId: member.userId,
-        amount: splitAmount,
+        amount: (args.amount * member.splitPercent) / 100,
       }));
-    } else {
-      // For custom splits, validate that the sum equals the total amount
-      const totalSplit = args.splits.reduce(
-        (sum, split) => sum + split.amount,
-        0,
-      );
-      if (Math.abs(totalSplit - args.amount) > 0.01) {
-        throw new Error("Split amounts must sum to the total amount");
-      }
+    }
+    // else use the provided custom splits
+
+    // Validate that splits sum to total amount
+    const totalSplit = splits.reduce((sum, split) => sum + split.amount, 0);
+    if (Math.abs(totalSplit - args.amount) > 0.01) {
+      throw new Error("Split amounts must sum to the total amount");
     }
 
     // Create the expense
@@ -73,65 +76,35 @@ export const create = mutation({
     });
 
     // Create the splits
-    for (const split of args.splits) {
+    for (const split of splits) {
       await ctx.db.insert("expenseSplits", {
         expenseId,
         userId: split.userId,
         amount: split.amount,
         settled: false,
       });
-    }
 
-    // Update balances
-    await ctx.db.patch(args.groupId, {
-      totalBalance:
-        (await ctx.db.get(args.groupId))!.totalBalance + args.amount,
-    });
-
-    for (const split of args.splits) {
-      const memberBalance = (await ctx.db
-        .query("groupMembers")
-        .withIndex("by_group_and_user", (q) =>
-          q.eq("groupId", args.groupId).eq("userId", split.userId),
-        )
-        .unique())!.balance;
-
-      await ctx.db
-        .query("groupMembers")
-        .withIndex("by_group_and_user", (q) =>
-          q.eq("groupId", args.groupId).eq("userId", split.userId),
-        )
-        .unique()
-        .then((member) => {
-          if (member) {
-            ctx.db.patch(member._id, {
-              balance: memberBalance - split.amount,
-            });
-          }
-        });
-    }
-
-    // Update payer's balance
-    const payerBalance = (await ctx.db
-      .query("groupMembers")
-      .withIndex("by_group_and_user", (q) =>
-        q.eq("groupId", args.groupId).eq("userId", userId),
-      )
-      .unique())!.balance;
-
-    await ctx.db
-      .query("groupMembers")
-      .withIndex("by_group_and_user", (q) =>
-        q.eq("groupId", args.groupId).eq("userId", userId),
-      )
-      .unique()
-      .then((member) => {
-        if (member) {
-          ctx.db.patch(member._id, {
-            balance: payerBalance + args.amount,
+      // Update member balance
+      const member = members.find((m) => m.userId === split.userId);
+      if (member) {
+        // If this is the payer, add the full amount and subtract their split
+        if (member.userId === userId) {
+          await ctx.db.patch(member._id, {
+            balance: member.balance + args.amount - split.amount,
+          });
+        } else {
+          // For others, just subtract their split
+          await ctx.db.patch(member._id, {
+            balance: member.balance - split.amount,
           });
         }
-      });
+      }
+    }
+
+    // Update group total balance
+    await ctx.db.patch(args.groupId, {
+      totalBalance: group.totalBalance + args.amount,
+    });
 
     return expenseId;
   },
@@ -153,7 +126,7 @@ export const listByGroup = query({
       amount: v.number(),
       date: v.number(),
       paidBy: v.id("users"),
-      splitType: v.union(v.literal("equal"), v.literal("custom")),
+      splitType: v.union(v.literal("default"), v.literal("custom")),
       note: v.optional(v.string()),
       status: v.union(v.literal("active"), v.literal("settled")),
       splits: v.array(

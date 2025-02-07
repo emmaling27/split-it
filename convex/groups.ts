@@ -37,55 +37,6 @@ export const create = mutation({
 });
 
 /**
- * Add a member to a group
- */
-export const addMember = mutation({
-  args: {
-    groupId: v.id("groups"),
-    userId: v.id("users"),
-    role: v.union(v.literal("admin"), v.literal("member")),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check if the current user is an admin of the group
-    const membership = await ctx.db
-      .query("groupMembers")
-      .withIndex("by_group_and_user", (q) =>
-        q.eq("groupId", args.groupId).eq("userId", userId),
-      )
-      .unique();
-
-    if (!membership || membership.role !== "admin") {
-      throw new Error("Only group admins can add members");
-    }
-
-    // Check if user is already a member
-    const existingMembership = await ctx.db
-      .query("groupMembers")
-      .withIndex("by_group_and_user", (q) =>
-        q.eq("groupId", args.groupId).eq("userId", args.userId),
-      )
-      .unique();
-
-    if (existingMembership) {
-      throw new Error("User is already a member of this group");
-    }
-
-    await ctx.db.insert("groupMembers", {
-      groupId: args.groupId,
-      userId: args.userId,
-      balance: 0,
-      role: args.role,
-    });
-
-    return null;
-  },
-});
-
-/**
  * List all groups that the current user is a member of
  */
 export const list = query({

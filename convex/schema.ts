@@ -27,7 +27,7 @@ export default defineSchema({
     // Role can be "admin" or "member"
     role: v.union(v.literal("admin"), v.literal("member")),
     // Default split percentage for this member (0-100)
-    splitPercent: v.optional(v.number()),
+    splitPercent: v.number(),
   })
     .index("by_group", ["groupId"])
     .index("by_user", ["userId"])
@@ -58,8 +58,8 @@ export default defineSchema({
     groupId: v.id("groups"),
     // Who paid for the expense
     paidBy: v.id("users"),
-    // Type of split: "equal" or "custom"
-    splitType: v.union(v.literal("equal"), v.literal("custom")),
+    // Type of split: "default" or "custom"
+    splitType: v.union(v.literal("default"), v.literal("custom")),
     // Optional note
     note: v.optional(v.string()),
     // Status of the expense: "active" or "settled"
