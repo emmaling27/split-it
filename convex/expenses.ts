@@ -116,28 +116,32 @@ export const create = mutation({
 export const listByGroup = query({
   args: {
     groupId: v.id("groups"),
+    showSettled: v.optional(v.boolean()),
   },
-  returns: v.array(
-    v.object({
-      _id: v.id("expenses"),
-      _creationTime: v.number(),
-      groupId: v.id("groups"),
-      description: v.string(),
-      amount: v.number(),
-      date: v.number(),
-      paidBy: v.id("users"),
-      splitType: v.union(v.literal("default"), v.literal("custom")),
-      note: v.optional(v.string()),
-      status: v.union(v.literal("active"), v.literal("settled")),
-      splits: v.array(
-        v.object({
-          userId: v.id("users"),
-          amount: v.number(),
-          settled: v.boolean(),
-        }),
-      ),
-    }),
-  ),
+  returns: v.object({
+    expenses: v.array(
+      v.object({
+        _id: v.id("expenses"),
+        _creationTime: v.number(),
+        groupId: v.id("groups"),
+        description: v.string(),
+        amount: v.number(),
+        date: v.number(),
+        paidBy: v.id("users"),
+        splitType: v.union(v.literal("default"), v.literal("custom")),
+        note: v.optional(v.string()),
+        status: v.union(v.literal("active"), v.literal("settled")),
+        splits: v.array(
+          v.object({
+            userId: v.id("users"),
+            amount: v.number(),
+            settled: v.boolean(),
+          }),
+        ),
+      }),
+    ),
+    hasSettled: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
@@ -154,9 +158,23 @@ export const listByGroup = query({
       throw new Error("Not a member of this group");
     }
 
+    // Check if there are any settled expenses
+    const hasSettled = await ctx.db
+      .query("expenses")
+      .withIndex("by_group_and_status", (q) =>
+        q.eq("groupId", args.groupId).eq("status", "settled"),
+      )
+      .first()
+      .then(Boolean);
+
+    // Get expenses based on showSettled parameter
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_group_and_status", (q) => q.eq("groupId", args.groupId))
+      .withIndex("by_group_and_status", (q) =>
+        args.showSettled
+          ? q.eq("groupId", args.groupId)
+          : q.eq("groupId", args.groupId).eq("status", "active"),
+      )
       .order("desc")
       .collect();
 
@@ -178,7 +196,10 @@ export const listByGroup = query({
       }),
     );
 
-    return expensesWithSplits;
+    return {
+      expenses: expensesWithSplits,
+      hasSettled,
+    };
   },
 });
 
