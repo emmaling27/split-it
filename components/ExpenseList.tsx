@@ -1,18 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import UserDisplay from "./UserDisplay";
 import { Button } from "./ui/button";
+import { Trash2 } from "lucide-react";
+import { useToast } from "./ui/use-toast";
 
 export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
   const [showSettled, setShowSettled] = useState(false);
+  const { toast } = useToast();
   const result = useQuery(api.expenses.listByGroup, {
     groupId,
     showSettled,
   });
+
+  const deleteExpense = useMutation(api.expenses.deleteExpense);
+
+  const handleDelete = async (expenseId: Id<"expenses">) => {
+    try {
+      await deleteExpense({ expenseId });
+      toast({
+        title: "Expense deleted",
+        description: "The expense has been successfully deleted.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to delete expense",
+        description:
+          error instanceof Error ? error.message : "An error occurred",
+      });
+    }
+  };
 
   if (!result) {
     return null;
@@ -61,13 +83,23 @@ export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
                   Paid by <UserDisplay userId={expense.paidBy} />
                 </p>
               </div>
-              <div className="text-right">
-                <div className="text-lg font-semibold text-green-600">
-                  ${expense.amount.toFixed(2)}
+              <div className="flex items-start gap-4">
+                <div className="text-right">
+                  <div className="text-lg font-semibold text-green-600">
+                    ${expense.amount.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {new Date(expense.date).toLocaleDateString()}
+                  </div>
                 </div>
-                <div className="text-sm text-gray-500">
-                  {new Date(expense.date).toLocaleDateString()}
-                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-400 hover:text-red-600 -mt-1"
+                  onClick={() => handleDelete(expense._id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 

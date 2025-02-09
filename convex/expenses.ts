@@ -333,3 +333,74 @@ export const settleGroup = mutation({
     return null;
   },
 });
+
+/**
+ * Delete an expense and update balances
+ */
+export const deleteExpense = mutation({
+  args: {
+    expenseId: v.id("expenses"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Get the expense
+    const expense = await ctx.db.get(args.expenseId);
+    if (!expense) throw new Error("Expense not found");
+
+    // Only the person who paid can delete the expense
+    if (expense.paidBy !== userId) {
+      throw new Error("Only the payer can delete this expense");
+    }
+
+    // Get all splits for this expense
+    const splits = await ctx.db
+      .query("expenseSplits")
+      .withIndex("by_expense", (q) => q.eq("expenseId", args.expenseId))
+      .collect();
+
+    // Get all members of the group
+    const members = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group", (q) => q.eq("groupId", expense.groupId))
+      .collect();
+
+    // Update member balances
+    for (const split of splits) {
+      const member = members.find((m) => m.userId === split.userId);
+      if (member) {
+        // If this is the payer, subtract the full amount and add their split
+        if (member.userId === expense.paidBy) {
+          await ctx.db.patch(member._id, {
+            balance: member.balance - expense.amount + split.amount,
+          });
+        } else {
+          // For others, just add their split back
+          await ctx.db.patch(member._id, {
+            balance: member.balance + split.amount,
+          });
+        }
+      }
+    }
+
+    // Update group total balance
+    const group = await ctx.db.get(expense.groupId);
+    if (group) {
+      await ctx.db.patch(expense.groupId, {
+        totalBalance: group.totalBalance - expense.amount,
+      });
+    }
+
+    // Delete all splits
+    for (const split of splits) {
+      await ctx.db.delete(split._id);
+    }
+
+    // Delete the expense
+    await ctx.db.delete(args.expenseId);
+
+    return null;
+  },
+});
