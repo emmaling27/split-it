@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import UserDisplay from "./UserDisplay";
@@ -9,14 +8,37 @@ import { Button } from "./ui/button";
 import { Trash2 } from "lucide-react";
 import { useToast } from "./ui/use-toast";
 
-export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
-  const [showSettled, setShowSettled] = useState(false);
-  const { toast } = useToast();
-  const result = useQuery(api.expenses.listByGroup, {
-    groupId,
-    showSettled,
-  });
+interface Expense {
+  _id: Id<"expenses">;
+  _creationTime: number;
+  description: string;
+  amount: number;
+  date: number;
+  paidBy: Id<"users">;
+  splitType: "default" | "custom";
+  note?: string;
+  status: "active" | "settled";
+  splits: Array<{
+    userId: Id<"users">;
+    amount: number;
+    settled: boolean;
+  }>;
+}
 
+interface ExpenseListProps {
+  expenses: Expense[];
+  hasSettled: boolean;
+  showSettled: boolean;
+  onToggleSettled: () => void;
+}
+
+export default function ExpenseList({
+  expenses,
+  hasSettled,
+  showSettled,
+  onToggleSettled,
+}: ExpenseListProps) {
+  const { toast } = useToast();
   const deleteExpense = useMutation(api.expenses.deleteExpense);
 
   const handleDelete = async (expenseId: Id<"expenses">) => {
@@ -36,12 +58,6 @@ export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
     }
   };
 
-  if (!result) {
-    return null;
-  }
-
-  const { expenses, hasSettled } = result;
-
   if (expenses.length === 0 && !hasSettled) {
     return (
       <div className="text-center py-12">
@@ -55,11 +71,7 @@ export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">No active expenses.</p>
-        <Button
-          variant="outline"
-          onClick={() => setShowSettled(true)}
-          className="mt-4"
-        >
+        <Button variant="outline" onClick={onToggleSettled} className="mt-4">
           Show Settled Expenses
         </Button>
       </div>
@@ -140,7 +152,7 @@ export default function ExpenseList({ groupId }: { groupId: Id<"groups"> }) {
         <div className="flex justify-center">
           <Button
             variant="outline"
-            onClick={() => setShowSettled(!showSettled)}
+            onClick={onToggleSettled}
             className="text-gray-600"
           >
             {showSettled ? "Hide Settled Expenses" : "Show Settled Expenses"}
