@@ -7,6 +7,7 @@ import UserDisplay from "./UserDisplay";
 import { Button } from "./ui/button";
 import { Trash2 } from "lucide-react";
 import { useToast } from "./ui/use-toast";
+import { useState } from "react";
 
 interface Expense {
   _id: Id<"expenses">;
@@ -25,6 +26,39 @@ interface Expense {
   }>;
 }
 
+// Helper function for handling mutation responses
+function handleMutationError(
+  error: unknown,
+  toast: ReturnType<typeof useToast>["toast"],
+) {
+  if (!error) return;
+
+  // Handle specific error responses from the mutation
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "result" in error &&
+    error.result === "error" &&
+    "message" in error
+  ) {
+    toast({
+      variant: "destructive",
+      title: "Error",
+      description: error.message as string,
+      duration: 5000,
+    });
+    return;
+  }
+
+  // Handle system/unexpected errors
+  toast({
+    variant: "destructive",
+    title: "System Error",
+    description: "An unexpected error occurred. Please try again later.",
+    duration: 5000,
+  });
+}
+
 interface ExpenseListProps {
   expenses: Expense[];
   hasSettled: boolean;
@@ -40,21 +74,33 @@ export default function ExpenseList({
 }: ExpenseListProps) {
   const { toast } = useToast();
   const deleteExpense = useMutation(api.expenses.deleteExpense);
+  const [deletingId, setDeletingId] = useState<Id<"expenses"> | null>(null);
 
   const handleDelete = async (expenseId: Id<"expenses">) => {
+    if (deletingId) {
+      return;
+    }
+
+    setDeletingId(expenseId);
+
     try {
-      await deleteExpense({ expenseId });
-      toast({
-        title: "Expense deleted",
-        description: "The expense has been successfully deleted.",
-      });
+      const response = await deleteExpense({ expenseId });
+
+      if (!response) {
+        handleMutationError(
+          { message: "No response received from server" },
+          toast,
+        );
+        return;
+      }
+
+      if (response.result !== "success") {
+        handleMutationError(response, toast);
+      }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Failed to delete expense",
-        description:
-          error instanceof Error ? error.message : "An error occurred",
-      });
+      handleMutationError(error, toast);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -109,6 +155,7 @@ export default function ExpenseList({
                   size="icon"
                   className="text-gray-400 hover:text-red-600 -mt-1"
                   onClick={() => handleDelete(expense._id)}
+                  disabled={deletingId === expense._id}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

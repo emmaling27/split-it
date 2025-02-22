@@ -1,6 +1,33 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { Validator } from "convex/values";
+import { Id } from "./_generated/dataModel";
+
+type SuccessResponse<T> = {
+  result: "success";
+  value: T;
+};
+
+type ErrorResponse = {
+  result: "error";
+  message: string;
+};
+
+type MutationResult<T> = SuccessResponse<T> | ErrorResponse;
+
+function MutationResponse<T>(valueValidator: Validator<T>) {
+  return v.union(
+    v.object({
+      result: v.literal("success"),
+      value: valueValidator,
+    }),
+    v.object({
+      result: v.literal("error"),
+      message: v.string(),
+    }),
+  );
+}
 
 /**
  * Create a new expense in a group
@@ -19,10 +46,15 @@ export const create = mutation({
     ),
     note: v.optional(v.string()),
   },
-  returns: v.id("expenses"),
-  handler: async (ctx, args) => {
+  returns: MutationResponse(v.id("expenses")),
+  handler: async (ctx, args): Promise<MutationResult<Id<"expenses">>> => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) {
+      return {
+        result: "error",
+        message: "Please sign in to create an expense.",
+      };
+    }
 
     // Check if user is a member of the group
     const membership = await ctx.db
@@ -33,12 +65,20 @@ export const create = mutation({
       .unique();
 
     if (!membership) {
-      throw new Error("Not a member of this group");
+      return {
+        result: "error",
+        message: "You don't have permission to create expenses in this group.",
+      };
     }
 
     // Get the group to check split configuration
     const group = await ctx.db.get(args.groupId);
-    if (!group) throw new Error("Group not found");
+    if (!group) {
+      return {
+        result: "error",
+        message: "Group not found.",
+      };
+    }
 
     // Get all group members
     const members = await ctx.db
@@ -60,7 +100,10 @@ export const create = mutation({
     // Validate that splits sum to total amount
     const totalSplit = splits.reduce((sum, split) => sum + split.amount, 0);
     if (Math.abs(totalSplit - args.amount) > 0.01) {
-      throw new Error("Split amounts must sum to the total amount");
+      return {
+        result: "error",
+        message: "Split amounts must add up to the total expense amount.",
+      };
     }
 
     // Create the expense
@@ -106,7 +149,10 @@ export const create = mutation({
       totalBalance: group.totalBalance + args.amount,
     });
 
-    return expenseId;
+    return {
+      result: "success",
+      value: expenseId,
+    };
   },
 });
 
@@ -211,19 +257,30 @@ export const settleExpense = mutation({
     expenseId: v.id("expenses"),
     userId: v.id("users"),
   },
-  returns: v.null(),
-  handler: async (ctx, args) => {
+  returns: MutationResponse(v.null()),
+  handler: async (ctx, args): Promise<MutationResult<null>> => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) {
+      return {
+        result: "error",
+        message: "Please sign in to settle expenses.",
+      };
+    }
 
     const expense = await ctx.db.get(args.expenseId);
     if (!expense) {
-      throw new Error("Expense not found");
+      return {
+        result: "error",
+        message: "Expense not found.",
+      };
     }
 
     // Only the person who paid can mark splits as settled
     if (expense.paidBy !== userId) {
-      throw new Error("Only the payer can settle expense splits");
+      return {
+        result: "error",
+        message: "Only the payer can settle expense splits.",
+      };
     }
 
     const split = await ctx.db
@@ -234,11 +291,17 @@ export const settleExpense = mutation({
       .unique();
 
     if (!split) {
-      throw new Error("Split not found");
+      return {
+        result: "error",
+        message: "Split not found.",
+      };
     }
 
     if (split.settled) {
-      throw new Error("Split is already settled");
+      return {
+        result: "error",
+        message: "Split is already settled.",
+      };
     }
 
     await ctx.db.patch(split._id, {
@@ -258,7 +321,10 @@ export const settleExpense = mutation({
       });
     }
 
-    return null;
+    return {
+      result: "success",
+      value: null,
+    };
   },
 });
 
@@ -269,10 +335,15 @@ export const settleGroup = mutation({
   args: {
     groupId: v.id("groups"),
   },
-  returns: v.null(),
-  handler: async (ctx, args) => {
+  returns: MutationResponse(v.null()),
+  handler: async (ctx, args): Promise<MutationResult<null>> => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) {
+      return {
+        result: "error",
+        message: "Please sign in to settle the group.",
+      };
+    }
 
     // Check if user is a member of the group
     const membership = await ctx.db
@@ -283,7 +354,10 @@ export const settleGroup = mutation({
       .unique();
 
     if (!membership) {
-      throw new Error("Not a member of this group");
+      return {
+        result: "error",
+        message: "You don't have permission to settle this group.",
+      };
     }
 
     // Get all active expenses in the group
@@ -330,7 +404,10 @@ export const settleGroup = mutation({
       totalBalance: 0,
     });
 
-    return null;
+    return {
+      result: "success",
+      value: null,
+    };
   },
 });
 
@@ -341,18 +418,43 @@ export const deleteExpense = mutation({
   args: {
     expenseId: v.id("expenses"),
   },
-  returns: v.null(),
-  handler: async (ctx, args) => {
+  returns: MutationResponse(v.null()),
+  handler: async (ctx, args): Promise<MutationResult<null>> => {
+    console.log("Starting deleteExpense mutation for:", args.expenseId);
+
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) {
+      console.log("Delete failed: User not authenticated");
+      return {
+        result: "error",
+        message: "Please sign in to delete expenses.",
+      };
+    }
 
     // Get the expense
     const expense = await ctx.db.get(args.expenseId);
-    if (!expense) throw new Error("Expense not found");
+    console.log("Found expense:", expense);
+
+    if (!expense) {
+      console.log("Delete failed: Expense not found");
+      return {
+        result: "error",
+        message: "Expense not found.",
+      };
+    }
 
     // Only the person who paid can delete the expense
     if (expense.paidBy !== userId) {
-      throw new Error("Only the payer can delete this expense");
+      console.log(
+        "Delete failed: User",
+        userId,
+        "is not the payer",
+        expense.paidBy,
+      );
+      return {
+        result: "error",
+        message: "Only the payer can delete this expense.",
+      };
     }
 
     // Get all splits for this expense
@@ -360,24 +462,29 @@ export const deleteExpense = mutation({
       .query("expenseSplits")
       .withIndex("by_expense", (q) => q.eq("expenseId", args.expenseId))
       .collect();
+    console.log("Found splits:", splits);
 
     // Get all members of the group
     const members = await ctx.db
       .query("groupMembers")
       .withIndex("by_group", (q) => q.eq("groupId", expense.groupId))
       .collect();
+    console.log("Found group members:", members);
 
+    console.log("Updating member balances...");
     // Update member balances
     for (const split of splits) {
       const member = members.find((m) => m.userId === split.userId);
       if (member) {
         // If this is the payer, subtract the full amount and add their split
         if (member.userId === expense.paidBy) {
+          console.log("Updating payer balance for:", member.userId);
           await ctx.db.patch(member._id, {
             balance: member.balance - expense.amount + split.amount,
           });
         } else {
           // For others, just add their split back
+          console.log("Updating member balance for:", member.userId);
           await ctx.db.patch(member._id, {
             balance: member.balance + split.amount,
           });
@@ -388,19 +495,31 @@ export const deleteExpense = mutation({
     // Update group total balance
     const group = await ctx.db.get(expense.groupId);
     if (group) {
+      console.log(
+        "Updating group balance from",
+        group.totalBalance,
+        "to",
+        group.totalBalance - expense.amount,
+      );
       await ctx.db.patch(expense.groupId, {
         totalBalance: group.totalBalance - expense.amount,
       });
     }
 
+    console.log("Deleting splits...");
     // Delete all splits
     for (const split of splits) {
       await ctx.db.delete(split._id);
     }
 
+    console.log("Deleting expense...");
     // Delete the expense
     await ctx.db.delete(args.expenseId);
 
-    return null;
+    console.log("Delete operation completed successfully");
+    return {
+      result: "success",
+      value: null,
+    };
   },
 });

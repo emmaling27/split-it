@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useToast } from "./ui/use-toast";
 
 export default function SettleGroupButton({
   groupId,
@@ -24,13 +25,33 @@ export default function SettleGroupButton({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const settleGroup = useMutation(api.expenses.settleGroup);
+  const { toast } = useToast();
 
   const handleSettle = async () => {
     try {
       setIsLoading(true);
-      await settleGroup({ groupId });
+      const response = await settleGroup({ groupId });
+      if (response.result === "success") {
+        toast({
+          title: "Group settled",
+          description:
+            "All expenses have been marked as settled and balances have been reset.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to settle group",
+          description: response.message,
+        });
+      }
     } catch (error) {
-      console.error("Failed to settle group:", error);
+      // System errors
+      console.error("System error:", error);
+      toast({
+        variant: "destructive",
+        title: "System Error",
+        description: "An unexpected error occurred. Please try again later.",
+      });
     } finally {
       setIsLoading(false);
     }

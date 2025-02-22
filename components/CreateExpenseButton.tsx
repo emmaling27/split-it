@@ -4,6 +4,16 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useToast } from "./ui/use-toast";
 
 type Split = {
   userId: Id<"users">;
@@ -23,7 +33,8 @@ export default function CreateExpenseButton({
   const [customSplits, setCustomSplits] = useState<
     { userId: Id<"users">; amount: string }[]
   >([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const createExpense = useMutation(api.expenses.create);
   const group = useQuery(api.groups.get, { groupId });
@@ -32,11 +43,18 @@ export default function CreateExpenseButton({
     e.preventDefault();
     if (!group) return;
 
-    setIsSubmitting(true);
+    setIsLoading(true);
 
     try {
       const numericAmount = parseFloat(amount);
-      if (isNaN(numericAmount)) throw new Error("Invalid amount");
+      if (isNaN(numericAmount)) {
+        toast({
+          variant: "destructive",
+          title: "Invalid amount",
+          description: "Please enter a valid number for the amount.",
+        });
+        return;
+      }
 
       let splits: Split[] = [];
       if (splitType === "default") {
@@ -51,11 +69,17 @@ export default function CreateExpenseButton({
 
         const totalSplit = splits.reduce((sum, split) => sum + split.amount, 0);
         if (Math.abs(totalSplit - numericAmount) > 0.01) {
-          throw new Error("Split amounts must sum to the total amount");
+          toast({
+            variant: "destructive",
+            title: "Invalid split amounts",
+            description:
+              "The split amounts must add up to the total expense amount.",
+          });
+          return;
         }
       }
 
-      await createExpense({
+      const response = await createExpense({
         groupId,
         description,
         amount: numericAmount,
@@ -64,17 +88,34 @@ export default function CreateExpenseButton({
         note: note || undefined,
       });
 
-      setIsOpen(false);
-      setDescription("");
-      setAmount("");
-      setNote("");
-      setSplitType("default");
-      setCustomSplits([]);
+      if (response.result === "success") {
+        setIsOpen(false);
+        setDescription("");
+        setAmount("");
+        setNote("");
+        setSplitType("default");
+        setCustomSplits([]);
+        toast({
+          title: "Success",
+          description: "Expense created successfully",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to create expense",
+          description: response.message,
+        });
+      }
     } catch (error) {
-      console.error("Failed to create expense:", error);
-      alert("Failed to create expense. Please try again.");
+      // System errors
+      console.error("System error:", error);
+      toast({
+        variant: "destructive",
+        title: "System Error",
+        description: "An unexpected error occurred. Please try again later.",
+      });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
@@ -93,148 +134,133 @@ export default function CreateExpenseButton({
   if (!group) return null;
 
   return (
-    <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-      >
-        Add Expense
-      </button>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button>Create Expense</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create New Expense</DialogTitle>
+          <DialogDescription>
+            Add a new expense to split with your group.
+          </DialogDescription>
+        </DialogHeader>
 
-      {isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">Create New Expense</h2>
-
-            <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label
-                  htmlFor="description"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Description
-                </label>
-                <input
-                  type="text"
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div className="mb-4">
-                <label
-                  htmlFor="amount"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Amount
-                </label>
-                <input
-                  type="number"
-                  id="amount"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  step="0.01"
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div className="mb-4">
-                <label
-                  htmlFor="splitType"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Split Type
-                </label>
-                <select
-                  id="splitType"
-                  value={splitType}
-                  onChange={(e) =>
-                    setSplitType(e.target.value as "default" | "custom")
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="equal">Default Split</option>
-                  <option value="custom">Custom Split</option>
-                </select>
-              </div>
-
-              {splitType === "custom" && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Custom Split Amounts
-                  </label>
-                  <div className="space-y-2">
-                    {group.members.map((member) => (
-                      <div
-                        key={member.userId}
-                        className="flex items-center gap-2"
-                      >
-                        <span className="text-sm">User {member.userId}:</span>
-                        <input
-                          type="number"
-                          value={
-                            customSplits.find(
-                              (split) => split.userId === member.userId,
-                            )?.amount || ""
-                          }
-                          onChange={(e) =>
-                            handleCustomSplitChange(
-                              member.userId,
-                              e.target.value,
-                            )
-                          }
-                          step="0.01"
-                          min="0"
-                          className="flex-1 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-6">
-                <label
-                  htmlFor="note"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Note (Optional)
-                </label>
-                <textarea
-                  id="note"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting ? "Creating..." : "Create Expense"}
-                </button>
-              </div>
-            </form>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label
+              htmlFor="description"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Description
+            </label>
+            <input
+              type="text"
+              id="description"
+              name="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
           </div>
-        </div>
-      )}
-    </>
+
+          <div>
+            <label
+              htmlFor="amount"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Amount
+            </label>
+            <input
+              type="number"
+              id="amount"
+              name="amount"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              step="0.01"
+              required
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="splitType"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Split Type
+            </label>
+            <select
+              id="splitType"
+              name="splitType"
+              value={splitType}
+              onChange={(e) =>
+                setSplitType(e.target.value as "default" | "custom")
+              }
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+              <option value="equal">Default Split</option>
+              <option value="custom">Custom Split</option>
+            </select>
+          </div>
+
+          {splitType === "custom" && (
+            <div className="space-y-2">
+              {group.members.map((member) => (
+                <div key={member.userId} className="flex items-center gap-2">
+                  <span className="text-sm">User {member.userId}:</span>
+                  <input
+                    type="number"
+                    value={
+                      customSplits.find(
+                        (split) => split.userId === member.userId,
+                      )?.amount || ""
+                    }
+                    onChange={(e) =>
+                      handleCustomSplitChange(member.userId, e.target.value)
+                    }
+                    step="0.01"
+                    min="0"
+                    className="flex-1 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div>
+            <label
+              htmlFor="note"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Note (optional)
+            </label>
+            <textarea
+              id="note"
+              name="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Creating..." : "Create"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
