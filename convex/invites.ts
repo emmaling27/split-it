@@ -1,9 +1,10 @@
-import { action, internalMutation } from "./_generated/server";
+import { action, internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { api, internal } from "./_generated/api";
 import { sendResend } from "./email";
 import { CreateEmailResponse } from "resend";
+import { Id } from "./_generated/dataModel";
 
 const INVITE_EXPIRY_DAYS = 7;
 
@@ -11,6 +12,48 @@ type MutationResponse = {
   result: "success" | "error";
   message?: string;
 };
+
+type ValidInvite = {
+  valid: true;
+  groupId: Id<"groups">;
+};
+
+type InvalidInvite = {
+  valid: false;
+  message: string;
+};
+
+export const get = query({
+  args: {
+    inviteId: v.id("invitations"),
+  },
+  returns: v.union(
+    v.object({
+      valid: v.literal(true),
+      groupId: v.id("groups"),
+    }),
+    v.object({
+      valid: v.literal(false),
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, { inviteId }): Promise<ValidInvite | InvalidInvite> => {
+    const invite = await ctx.db.get(inviteId);
+    if (!invite) {
+      return { valid: false, message: "Invitation not found" };
+    }
+
+    if (invite.expiresAt < Date.now()) {
+      return { valid: false, message: "Invitation has expired" };
+    }
+
+    if (invite.status === "accepted") {
+      return { valid: false, message: "Invitation has already been used" };
+    }
+
+    return { valid: true, groupId: invite.groupId };
+  },
+});
 
 export const sendInvite = action({
   args: {
