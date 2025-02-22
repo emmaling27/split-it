@@ -5,13 +5,9 @@ import { api, internal } from "./_generated/api";
 import { sendResend } from "./email";
 import { CreateEmailResponse } from "resend";
 import { Id } from "./_generated/dataModel";
+import { MutationResponse } from "./validators";
 
 const INVITE_EXPIRY_DAYS = 7;
-
-type MutationResponse = {
-  result: "success" | "error";
-  message?: string;
-};
 
 type ValidInvite = {
   valid: true;
@@ -60,7 +56,13 @@ export const sendInvite = action({
     groupId: v.id("groups"),
     email: v.string(),
   },
-  handler: async (ctx, { groupId, email }): Promise<MutationResponse> => {
+  returns: MutationResponse(v.null()),
+  handler: async (
+    ctx,
+    { groupId, email },
+  ): Promise<
+    { success: true; value: null } | { success: false; message: string }
+  > => {
     try {
       // Get the authenticated user
       const userId = await getAuthUserId(ctx);
@@ -107,12 +109,10 @@ export const sendInvite = action({
       });
       if (resendResponse.error) throw new Error("Failed to send invite");
 
-      return {
-        result: "success",
-      };
+      return { success: true, value: null };
     } catch (error) {
       return {
-        result: "error",
+        success: false,
         message:
           error instanceof Error ? error.message : "Failed to send invite",
       };

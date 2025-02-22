@@ -14,12 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "./ui/use-toast";
 
-interface MutationResponse {
-  result: "success" | "error";
-  message?: string;
-}
-
-// Helper function for handling mutation responses
+// Helper function for handling mutation errors
 function handleMutationError(
   error: unknown,
   toast: ReturnType<typeof useToast>["toast"],
@@ -30,8 +25,8 @@ function handleMutationError(
   if (
     typeof error === "object" &&
     error !== null &&
-    "result" in error &&
-    error.result === "error" &&
+    "success" in error &&
+    !error.success &&
     "message" in error
   ) {
     toast({
@@ -65,19 +60,12 @@ export default function InviteButton({ groupId }: { groupId: Id<"groups"> }) {
     setIsSubmitting(true);
 
     try {
-      const result = (await sendInvite({
+      const result = await sendInvite({
         groupId,
         email,
-      })) as MutationResponse | null;
-      if (!result) {
-        handleMutationError(
-          { message: "No response received from server" },
-          toast,
-        );
-        return;
-      }
+      });
 
-      if (result.result === "success") {
+      if (result.success) {
         setIsOpen(false);
         setEmail("");
         // Keep a minimal success toast for invite confirmation
