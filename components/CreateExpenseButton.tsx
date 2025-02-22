@@ -88,7 +88,7 @@ export default function CreateExpenseButton({
         note: note || undefined,
       });
 
-      if (response.result === "success") {
+      if (response.success) {
         setIsOpen(false);
         setDescription("");
         setAmount("");

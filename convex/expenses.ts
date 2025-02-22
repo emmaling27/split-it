@@ -1,33 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { Validator } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { MutationResponse } from "./validators";
 
-type SuccessResponse<T> = {
-  result: "success";
-  value: T;
-};
-
-type ErrorResponse = {
-  result: "error";
-  message: string;
-};
-
-type MutationResult<T> = SuccessResponse<T> | ErrorResponse;
-
-function MutationResponse<T>(valueValidator: Validator<T>) {
-  return v.union(
-    v.object({
-      result: v.literal("success"),
-      value: valueValidator,
-    }),
-    v.object({
-      result: v.literal("error"),
-      message: v.string(),
-    }),
-  );
-}
+type MutationResult<T> =
+  | { success: true; value: T }
+  | { success: false; message: string };
 
 /**
  * Create a new expense in a group
@@ -51,7 +30,7 @@ export const create = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       return {
-        result: "error",
+        success: false,
         message: "Please sign in to create an expense.",
       };
     }
@@ -66,7 +45,7 @@ export const create = mutation({
 
     if (!membership) {
       return {
-        result: "error",
+        success: false,
         message: "You don't have permission to create expenses in this group.",
       };
     }
@@ -75,7 +54,7 @@ export const create = mutation({
     const group = await ctx.db.get(args.groupId);
     if (!group) {
       return {
-        result: "error",
+        success: false,
         message: "Group not found.",
       };
     }
@@ -101,7 +80,7 @@ export const create = mutation({
     const totalSplit = splits.reduce((sum, split) => sum + split.amount, 0);
     if (Math.abs(totalSplit - args.amount) > 0.01) {
       return {
-        result: "error",
+        success: false,
         message: "Split amounts must add up to the total expense amount.",
       };
     }
@@ -150,7 +129,7 @@ export const create = mutation({
     });
 
     return {
-      result: "success",
+      success: true,
       value: expenseId,
     };
   },
@@ -262,7 +241,7 @@ export const settleExpense = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       return {
-        result: "error",
+        success: false,
         message: "Please sign in to settle expenses.",
       };
     }
@@ -270,7 +249,7 @@ export const settleExpense = mutation({
     const expense = await ctx.db.get(args.expenseId);
     if (!expense) {
       return {
-        result: "error",
+        success: false,
         message: "Expense not found.",
       };
     }
@@ -278,7 +257,7 @@ export const settleExpense = mutation({
     // Only the person who paid can mark splits as settled
     if (expense.paidBy !== userId) {
       return {
-        result: "error",
+        success: false,
         message: "Only the payer can settle expense splits.",
       };
     }
@@ -292,14 +271,14 @@ export const settleExpense = mutation({
 
     if (!split) {
       return {
-        result: "error",
+        success: false,
         message: "Split not found.",
       };
     }
 
     if (split.settled) {
       return {
-        result: "error",
+        success: false,
         message: "Split is already settled.",
       };
     }
@@ -322,7 +301,7 @@ export const settleExpense = mutation({
     }
 
     return {
-      result: "success",
+      success: true,
       value: null,
     };
   },
@@ -340,7 +319,7 @@ export const settleGroup = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       return {
-        result: "error",
+        success: false,
         message: "Please sign in to settle the group.",
       };
     }
@@ -355,7 +334,7 @@ export const settleGroup = mutation({
 
     if (!membership) {
       return {
-        result: "error",
+        success: false,
         message: "You don't have permission to settle this group.",
       };
     }
@@ -405,7 +384,7 @@ export const settleGroup = mutation({
     });
 
     return {
-      result: "success",
+      success: true,
       value: null,
     };
   },
@@ -426,7 +405,7 @@ export const deleteExpense = mutation({
     if (!userId) {
       console.log("Delete failed: User not authenticated");
       return {
-        result: "error",
+        success: false,
         message: "Please sign in to delete expenses.",
       };
     }
@@ -438,7 +417,7 @@ export const deleteExpense = mutation({
     if (!expense) {
       console.log("Delete failed: Expense not found");
       return {
-        result: "error",
+        success: false,
         message: "Expense not found.",
       };
     }
@@ -452,7 +431,7 @@ export const deleteExpense = mutation({
         expense.paidBy,
       );
       return {
-        result: "error",
+        success: false,
         message: "Only the payer can delete this expense.",
       };
     }
@@ -518,7 +497,7 @@ export const deleteExpense = mutation({
 
     console.log("Delete operation completed successfully");
     return {
-      result: "success",
+      success: true,
       value: null,
     };
   },

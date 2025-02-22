@@ -94,7 +94,7 @@ export default function ExpenseList({
         return;
       }
 
-      if (response.result !== "success") {
+      if (!response.success) {
         handleMutationError(response, toast);
       }
     } catch (error) {

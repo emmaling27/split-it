@@ -31,7 +31,7 @@ export default function SettleGroupButton({
     try {
       setIsLoading(true);
       const response = await settleGroup({ groupId });
-      if (response.result === "success") {
+      if (response.success) {
         toast({
           title: "Group settled",
           description:
