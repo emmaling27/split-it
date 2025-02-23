@@ -1,6 +1,12 @@
-import { internalQuery, mutation, query } from "./_generated/server";
+import {
+  internalQuery,
+  mutation,
+  MutationCtx,
+  query,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { Id } from "./_generated/dataModel";
 
 /**
  * Create a new group
@@ -167,6 +173,65 @@ export const getMembership = internalQuery({
   },
 });
 
+export const addMemberToGroup = async (
+  ctx: MutationCtx,
+  groupId: Id<"groups">,
+  userId: Id<"users">,
+) => {
+  // Check if user is already a member
+  const existingMembership = await ctx.db
+    .query("groupMembers")
+    .withIndex("by_group_and_user", (q) =>
+      q.eq("groupId", groupId).eq("userId", userId),
+    )
+    .unique();
+
+  if (existingMembership) {
+    throw new Error("You are already a member of this group");
+  }
+
+  // Get the group to check if it has custom split ratios
+  const group = await ctx.db.get(groupId);
+  if (!group) throw new Error("Group not found");
+
+  // If the group does not have custom split ratios, we need to adjust all members' splits
+  if (!group.customSplitRatio) {
+    // Get all existing members
+    const members = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group", (q) => q.eq("groupId", groupId))
+      .collect();
+
+    // Calculate new equal split percentage
+    const newSplitPercent = 100 / (members.length + 1);
+
+    // Update existing members' split percentages
+    for (const member of members) {
+      await ctx.db.patch(member._id, {
+        splitPercent: newSplitPercent,
+      });
+    }
+
+    // Add new member with equal split
+    await ctx.db.insert("groupMembers", {
+      groupId,
+      userId,
+      balance: 0,
+      role: "member",
+      splitPercent: newSplitPercent,
+    });
+  } else {
+    // If no custom split ratios, just add the member with no split percentage
+    await ctx.db.insert("groupMembers", {
+      groupId,
+      userId,
+      balance: 0,
+      role: "member",
+      splitPercent: 0,
+    });
+  }
+};
+
 /**
  * Join a group using an invitation
  */
@@ -202,67 +267,14 @@ export const joinGroup = mutation({
       throw new Error("Invalid invitation");
     }
 
-    const groupId = validation.groupId;
-
-    // Check if user is already a member
-    const existingMembership = await ctx.db
-      .query("groupMembers")
-      .withIndex("by_group_and_user", (q) =>
-        q.eq("groupId", groupId).eq("userId", userId),
-      )
-      .unique();
-
-    if (existingMembership) {
-      throw new Error("You are already a member of this group");
-    }
-
-    // Get the group to check if it has custom split ratios
-    const group = await ctx.db.get(groupId);
-    if (!group) throw new Error("Group not found");
-
-    // If the group does not have custom split ratios, we need to adjust all members' splits
-    if (!group.customSplitRatio) {
-      // Get all existing members
-      const members = await ctx.db
-        .query("groupMembers")
-        .withIndex("by_group", (q) => q.eq("groupId", groupId))
-        .collect();
-
-      // Calculate new equal split percentage
-      const newSplitPercent = 100 / (members.length + 1);
-
-      // Update existing members' split percentages
-      for (const member of members) {
-        await ctx.db.patch(member._id, {
-          splitPercent: newSplitPercent,
-        });
-      }
-
-      // Add new member with equal split
-      await ctx.db.insert("groupMembers", {
-        groupId,
-        userId,
-        balance: 0,
-        role: "member",
-        splitPercent: newSplitPercent,
-      });
-    } else {
-      // If no custom split ratios, just add the member with no split percentage
-      await ctx.db.insert("groupMembers", {
-        groupId,
-        userId,
-        balance: 0,
-        role: "member",
-        splitPercent: 0,
-      });
-    }
+    await addMemberToGroup(ctx, validation.groupId, userId);
 
     // Mark the invitation as accepted
     await ctx.db.patch(validation._id, {
       status: "accepted",
     });
 
-    return groupId;
+    return validation.groupId;
   },
 });
 
