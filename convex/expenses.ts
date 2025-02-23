@@ -68,11 +68,28 @@ export const create = mutation({
     // Calculate splits based on given configuration
     let splits = args.splits;
     if (args.splitType === "default") {
-      // Use each member's splitPercent for default splits
-      splits = members.map((member) => ({
+      // Calculate all splits except the last one
+      const calculatedSplits = members.slice(0, -1).map((member) => ({
         userId: member.userId,
-        amount: (args.amount * member.splitPercent) / 100,
+        amount:
+          Math.round(((args.amount * member.splitPercent) / 100) * 100) / 100,
       }));
+
+      // Calculate the sum of all splits except the last one
+      const splitSum = calculatedSplits.reduce(
+        (sum, split) => sum + split.amount,
+        0,
+      );
+
+      // Set the last split to the remaining amount to ensure exact total
+      const lastMember = members[members.length - 1];
+      calculatedSplits.push({
+        userId: lastMember.userId,
+        amount: Math.round((args.amount - splitSum) * 100) / 100,
+      });
+
+      splits = calculatedSplits;
+      console.log("Default splits:", splits);
     }
     // else use the provided custom splits
 
