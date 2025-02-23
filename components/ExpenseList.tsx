@@ -8,6 +8,7 @@ import { Button } from "./ui/button";
 import { Trash2 } from "lucide-react";
 import { useToast } from "./ui/use-toast";
 import { useState } from "react";
+import { handleMutationError } from "@/lib/utils";
 
 interface Expense {
   _id: Id<"expenses">;
@@ -27,37 +28,6 @@ interface Expense {
 }
 
 // Helper function for handling mutation responses
-function handleMutationError(
-  error: unknown,
-  toast: ReturnType<typeof useToast>["toast"],
-) {
-  if (!error) return;
-
-  // Handle specific error responses from the mutation
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "result" in error &&
-    error.result === "error" &&
-    "message" in error
-  ) {
-    toast({
-      variant: "destructive",
-      title: "Error",
-      description: error.message as string,
-      duration: 5000,
-    });
-    return;
-  }
-
-  // Handle system/unexpected errors
-  toast({
-    variant: "destructive",
-    title: "System Error",
-    description: "An unexpected error occurred. Please try again later.",
-    duration: 5000,
-  });
-}
 
 interface ExpenseListProps {
   expenses: Expense[];
@@ -155,7 +125,14 @@ export default function ExpenseList({
                   size="icon"
                   className="text-gray-400 hover:text-red-600 -mt-1"
                   onClick={() => handleDelete(expense._id)}
-                  disabled={deletingId === expense._id}
+                  disabled={
+                    deletingId === expense._id || expense.status === "settled"
+                  }
+                  title={
+                    expense.status === "settled"
+                      ? "Cannot delete settled expenses"
+                      : "Delete expense"
+                  }
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

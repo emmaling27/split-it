@@ -3,10 +3,7 @@ import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 import { MutationResponse } from "./validators";
-
-type MutationResult<T> =
-  | { success: true; value: T }
-  | { success: false; message: string };
+import { MutationResult } from "../lib/utils";
 
 /**
  * Create a new expense in a group
@@ -436,6 +433,14 @@ export const deleteExpense = mutation({
       return {
         success: false,
         message: "Expense not found.",
+      };
+    }
+
+    // Check if the expense is already settled
+    if (expense.status === "settled") {
+      return {
+        success: false,
+        message: "Cannot delete a settled expense.",
       };
     }
 

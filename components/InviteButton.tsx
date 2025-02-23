@@ -13,39 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "./ui/use-toast";
-
-// Helper function for handling mutation errors
-function handleMutationError(
-  error: unknown,
-  toast: ReturnType<typeof useToast>["toast"],
-) {
-  if (!error) return;
-
-  // Handle specific error responses from the mutation
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "success" in error &&
-    !error.success &&
-    "message" in error
-  ) {
-    toast({
-      variant: "destructive",
-      title: "Error",
-      description: error.message as string,
-      duration: 5000,
-    });
-    return;
-  }
-
-  // Handle system/unexpected errors
-  toast({
-    variant: "destructive",
-    title: "System Error",
-    description: "An unexpected error occurred. Please try again later.",
-    duration: 5000,
-  });
-}
+import { handleMutationError } from "@/lib/utils";
 
 export default function InviteButton({ groupId }: { groupId: Id<"groups"> }) {
   const [isOpen, setIsOpen] = useState(false);
