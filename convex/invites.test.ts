@@ -1,19 +1,10 @@
 import { convexTest } from "convex-test";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
+import { setupAuthMock } from "../lib/auth";
 
-let testUserId: string = "1;users";
-
-// Mock the getAuthUserId function because convex-auth assumes an id format incompatible with convex-test
-vi.mock("@convex-dev/auth/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@convex-dev/auth/server")>();
-  return {
-    ...actual,
-    getAuthUserId: vi.fn().mockImplementation(() => testUserId),
-  };
-});
+const authMock = setupAuthMock();
 
 test("sending invites", async () => {
   const t = convexTest(schema);
@@ -21,7 +12,7 @@ test("sending invites", async () => {
   const userId = await t.run(async (ctx) => {
     return ctx.db.insert("users", { name: "User", email: "test@example.com" });
   });
-  testUserId = userId;
+  authMock.setMockUserId(userId);
 
   const asUser = t.withIdentity({ name: "User" });
 
